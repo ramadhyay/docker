@@ -1,0 +1,102 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: postgres_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin
+      POSTGRES_DB: demodb
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - data-net      
+  clickhouse:
+    image: clickhouse/clickhouse-server:latest
+    container_name: clickhouse_db
+    restart: unless-stopped
+    ports:
+      - "8123:8123"
+      - "9000:9000"
+    environment:
+      - CLICKHOUSE_DB=clkdb
+      - CLICKHOUSE_USER=default
+      - CLICKHOUSE_PASSWORD=clickhouse
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+    networks:
+      - data-net
+  nifi:
+    image: apache/nifi:latest
+    container_name: apache_nifi
+    restart: unless-stopped
+    ports:
+      - "8443:8443"
+    environment:
+      - SINGLE_USER_CREDENTIALS_USERNAME=admin
+      - SINGLE_USER_CREDENTIALS_PASSWORD=welcome2nifi     
+    volumes:
+      - nifi_conf:/opt/nifi/nifi-current/conf
+      - nifi_jdbc:/opt/nifi/nifi-current/jdbc
+    networks:
+      - data-net
+    depends_on:
+      - postgres
+      - clickhouse
+    command: >
+      /bin/bash -c "
+      if [ ! -f /opt/nifi/nifi-current/jdbc/postgresql.jar ]; then
+        echo 'Downloading PostgreSQL JDBC driver...';
+        curl -L -o /opt/nifi/nifi-current/jdbc/postgresql.jar https://jdbc.postgresql.org/download/postgresql-42.7.3.jar;
+      else
+        echo 'JDBC driver already exists, skipping download.';
+      fi &&
+      if [ ! -f /opt/nifi/nifi-current/jdbc/clickhouse-jdbc.jar ]; then
+        echo 'Downloading ClickHouse JDBC driver...';
+        curl -L -o /opt/nifi/nifi-current/jdbc/clickhouse-jdbc.jar https://github.com/ClickHouse/clickhouse-java/releases/download/v0.4.6/clickhouse-jdbc-0.4.6-shaded.jar;
+      else
+        echo 'ClickHouse JDBC driver already exists, skipping download.';
+      fi &&
+      /opt/nifi/scripts/start.sh"
+  metabase:
+    image: metabase/metabase:latest
+    container_name: metabase_analytics
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - MB_DB_FILE=/metabase-data/metabase.db
+    volumes:
+      - metabase_data:/metabase-data
+    networks:
+      - data-net
+    depends_on:
+      - postgres
+      - clickhouse
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: pgadmin_ui
+    restart: unless-stopped
+    ports:
+      - "5050:80"
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=admin@admin.com
+      - PGADMIN_DEFAULT_PASSWORD=admin
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    networks:
+      - data-net
+    depends_on:
+      - postgres
+networks:
+  data-net:
+    driver: bridge
+volumes:
+  postgres_data:
+  clickhouse_data:
+  nifi_conf:
+  nifi_jdbc:
+  metabase_data:
+  pgadmin_data:
