@@ -1,0 +1,14 @@
+services:
+  claude:
+    build: .
+    stdin_open: true 
+    tty: true        
+    volumes:
+      # Map the named volume to the entire home directory
+      - claude-home:/home/node
+      # Bind your local code so Claude can see it
+      - .:/workspace
+
+# Tell Docker to manage this persistent volume
+volumes:
+  claude-home:
