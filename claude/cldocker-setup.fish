@@ -27,7 +27,7 @@ function cldocker
         -v "$PWD:/workspace" \
         -w /workspace \
         node:24-trixie-slim \
-        bash -c "export PATH=/home/node/.npm-global/bin:\$PATH && npm install -g @anthropic-ai/claude-code && claude"
+        bash -c "export PATH=/home/node/.npm-global/bin:\$PATH && npm install -g @anthropic-ai/claude-code && /bin/bash"
 end
 funcsave cldocker
 
