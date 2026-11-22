@@ -123,16 +123,19 @@ end
 
 echo "Step 4: Authorizing your SSH public key for the container (for herdr)..."
 set -l pubkey
-for f in ~/.ssh/id_ed25519.pub ~/.ssh/id_ecdsa.pub ~/.ssh/id_rsa.pub
+# Override with: AIDOCKER_PUBKEY=~/.ssh/mykey.pub fish aidocker-setup.fish
+set -l candidates ~/.ssh/id_ed25519.pub ~/.ssh/id_ecdsa.pub ~/.ssh/id_rsa.pub
+set -q AIDOCKER_PUBKEY; and set candidates $AIDOCKER_PUBKEY
+for f in $candidates
     if test -f $f
         set pubkey $f
         break
     end
 end
 if test -z "$pubkey"
-    echo "  No public key found in ~/.ssh (id_ed25519/id_ecdsa/id_rsa)."
+    echo "  No public key found (looked for: $candidates)."
     echo "  Create one with: ssh-keygen -t ed25519"
-    echo "  then re-run this script."
+    echo "  or point to yours: AIDOCKER_PUBKEY=~/.ssh/yourkey.pub fish aidocker-setup.fish"
     exit 1
 end
 echo "  Using $pubkey"
