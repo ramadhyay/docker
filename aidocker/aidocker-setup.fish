@@ -77,13 +77,14 @@ RUN mkdir -p /run/sshd /etc/aidocker \
     "KbdInteractiveAuthentication no" \
     "UsePAM no" \
     "X11Forwarding no" \
-    "SetEnv PATH=/home/node/.npm-global/bin:/home/node/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin NPM_CONFIG_PREFIX=/home/node/.npm-global UV_PYTHON_PREFERENCE=only-managed UV_LINK_MODE=copy" \
+    "SetEnv PATH=/home/node/.npm-global/bin:/home/node/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin NPM_CONFIG_PREFIX=/home/node/.npm-global UV_PYTHON_PREFERENCE=only-managed UV_LINK_MODE=copy XDG_RUNTIME_DIR=/tmp/xdg-runtime" \
     > /etc/aidocker/sshd_config
 
 # Container entrypoint: create the SSH host key in the volume if missing, then run
 # sshd in the foreground as the main process (replaces the old "sleep infinity").
 RUN printf "%s\n" "#!/bin/bash" "set -e" \
     "mkdir -p /home/node/.ssh && chmod 700 /home/node/.ssh" \
+    "mkdir -p /tmp/xdg-runtime && chmod 700 /tmp/xdg-runtime" \
     "[ -f /home/node/.ssh/host_ed25519 ] || ssh-keygen -q -t ed25519 -N \"\" -f /home/node/.ssh/host_ed25519" \
     "exec /usr/sbin/sshd -D -e -f /etc/aidocker/sshd_config" > /usr/local/bin/aidocker-init \
  && chmod +x /usr/local/bin/aidocker-init
@@ -99,7 +100,8 @@ ENV HOME=/home/node \
     NPM_CONFIG_PREFIX=/home/node/.npm-global \
     PATH=/home/node/.npm-global/bin:/home/node/.local/bin:$PATH \
     UV_PYTHON_PREFERENCE=only-managed \
-    UV_LINK_MODE=copy
+    UV_LINK_MODE=copy \
+    XDG_RUNTIME_DIR=/tmp/xdg-runtime
 
 USER node
 WORKDIR /workspace
@@ -196,10 +198,14 @@ function aidocker
                     -p 127.0.0.1:$port:2222 \
                     -v "$VOLUME:/home/node" \
                     -v "$PWD:/workspace"
-                # Wayland clipboard (wl-clipboard) support
+                # Wayland clipboard (wl-clipboard) support. The socket is mounted at a
+                # fixed path and WAYLAND_DISPLAY is an absolute path to it, so the
+                # container keeps its own writable XDG_RUNTIME_DIR (/tmp/xdg-runtime,
+                # needed by herdr-core). Mounting at the host's /run/user/UID would
+                # create that directory root-owned and unwritable.
                 if set -q WAYLAND_DISPLAY; and test -n "$XDG_RUNTIME_DIR"
-                    set -a args -e "XDG_RUNTIME_DIR=$XDG_RUNTIME_DIR" -e "WAYLAND_DISPLAY=$WAYLAND_DISPLAY" \
-                        -v "$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY:$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY:ro"
+                    set -a args -e "WAYLAND_DISPLAY=/tmp/wayland-host" \
+                        -v "$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY:/tmp/wayland-host:ro"
                 end
                 docker $args $IMAGE aidocker-init >/dev/null; or return 1
             else if test "$state" = false
