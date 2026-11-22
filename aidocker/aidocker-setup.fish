@@ -35,7 +35,7 @@ FROM ghcr.io/astral-sh/uv:latest AS uv
 FROM debian:trixie-slim
 
 RUN apt-get update \
- && apt-get install -y --no-install-recommends git ca-certificates curl unzip vim libstdc++6 wl-clipboard \
+ && apt-get install -y --no-install-recommends git ca-certificates curl unzip vim libstdc++6 wl-clipboard procps ripgrep \
  && rm -rf /var/lib/apt/lists/*
 
 COPY --from=node /usr/local/bin/node /usr/local/bin/node
@@ -47,8 +47,8 @@ COPY --from=uv /uv /uvx /usr/local/bin/
 
 # Install/update helper, used by setup and by "aidocker update".
 RUN printf "%s\n" "#!/bin/bash" "set -e" \
-    "npm install -g @anthropic-ai/claude-code @openai/codex @google/gemini-cli" \
-    "curl -fsSL https://cli.kiro.dev/install | KIRO_CLI_SKIP_SETUP=1 bash" \
+    "npm install -g --allow-scripts=@anthropic-ai/claude-code,@github/keytar @anthropic-ai/claude-code @openai/codex @google/gemini-cli" \
+    "curl -fsSL https://cli.kiro.dev/install | KIRO_CLI_SKIP_SETUP=1 bash -s -- --force" \
     "npm cache clean --force" > /usr/local/bin/aidocker-update \
  && chmod +x /usr/local/bin/aidocker-update
 
@@ -77,7 +77,7 @@ end
 echo "Step 2: Creating volume $VOLUME..."
 docker volume create $VOLUME >/dev/null; or exit 1
 
-echo "Step 3: Installing agents and Python 3.12 into the volume (takes a few minutes)..."
+echo "Step 3: Installing agents into the volume (takes a few minutes)..."
 docker run --rm --user (id -u):(id -g) -v "$VOLUME:/home/node" $IMAGE aidocker-update; or begin
     echo "  Agent install failed. Re-run this script to retry."
     exit 1
